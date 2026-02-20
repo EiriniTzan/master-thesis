@@ -21,6 +21,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 # Reproducibility
 def set_seed(seed: int = 42) -> None:
@@ -48,13 +49,13 @@ class SimConfig:
 
     # Data
     n_features: int = 20
-    n_train_old: int = 8000
+    n_train_old: int = 7000
     n_eval_old: int = 2000
     n_eval_new: int = 2000
 
     # Drift (mean drift on first drift_dims features)
     drift_dims: int = 5
-    drift_shift: float = 2.75
+    drift_shift: float = 3.0
 
     # MLP pretrain task (simple regression target)
     target_noise_std: float = 0.1
@@ -371,22 +372,10 @@ def reconstr_errors(ae: AutoEncoder, Z: torch.Tensor, batch_size: int = 512) -> 
         errs.append(e)
     return torch.cat(errs, dim=0)
 
-
-def main() -> None:
-    """
-    Main function for the simulation.
-
-    It first sets the seed and gets the device.
-    Then it generates old and new data and targets.
-    It pretrains an MLP on the old data and extracts the last hidden layer embeddings for old and new data.
-    It trains an Autoencoder on the old embeddings and calculates the reconstruction errors for old and new data.
-    Finally, it calculates the mean and standard deviation of the old reconstruction errors and sets a threshold based on these statistics.
-    It then compares the mean of the new reconstruction errors to the threshold and prints out the results.
-    """
-    cfg = SimConfig()
+def run_pipeline(cfg: SimConfig):
+    
     set_seed(cfg.seed)
     device = get_device()
-    print(f"Device: {device}")
 
     # Data (old vs new)
     X_old_train_np, X_old_eval_np, X_new_eval_np = gener_synthetic(cfg)
@@ -397,29 +386,79 @@ def main() -> None:
     X_old_eval = to_tensor(X_old_eval_np, device)
     X_new_eval = to_tensor(X_new_eval_np, device)
 
-    # Pretrain MLP on old concept (so embeddings are meaningful)
+    # Pretrain MLP on old concept
     mlp = MLPRepresentation(in_dim=cfg.n_features).to(device)
     train_mlp(mlp, X_old_train, y_old_train, cfg)
 
-    # Extract last hidden embeddings for old/new data
+    # Extract embeddings
     Z_old = extract_embeddings(mlp, X_old_eval)
     Z_new = extract_embeddings(mlp, X_new_eval)
-    print(f"Embeddings: Z_old={tuple(Z_old.shape)}, Z_new={tuple(Z_new.shape)}")
 
-    # Train AutoEncoder on old embeddings
+    # Train AE on old embeddings
     ae = AutoEncoder(in_dim=Z_old.shape[1], latent=16).to(device)
     train_ae(ae, Z_old, cfg)
 
-    # Drift signal using reconstruction error
+    # Reconstruction errors
     err_old = reconstr_errors(ae, Z_old)
     err_new = reconstr_errors(ae, Z_new)
 
+    # Drift signal
     old_mean = err_old.mean().item()
     old_std = err_old.std(unbiased=False).item()
     threshold = old_mean + cfg.sigma_k * old_std
-
     new_mean = err_new.mean().item()
     frac_new_above = (err_new > threshold).float().mean().item()
+
+    return err_old, err_new, threshold, old_mean, old_std, new_mean, frac_new_above
+
+def sensitivity_curve(cfg: SimConfig, drift_values: list[float]) -> list[float]:
+    fracs_above_thr = []
+    for d in drift_values:
+        cfg_d = SimConfig(
+            seed=cfg.seed,
+            n_features=cfg.n_features,
+            n_train_old=cfg.n_train_old,
+            n_eval_old=cfg.n_eval_old,
+            n_eval_new=cfg.n_eval_new,
+            drift_dims=cfg.drift_dims,
+            drift_shift=d,
+            target_noise_std=cfg.target_noise_std,
+            mlp_epochs=cfg.mlp_epochs,
+            ae_epochs=cfg.ae_epochs,
+            batch_size=cfg.batch_size,
+            lr=cfg.lr,
+            sigma_k=cfg.sigma_k,
+        )
+        _, _, _, _, _, _, frac = run_pipeline(cfg_d)
+        fracs_above_thr.append(frac)
+    return fracs_above_thr
+
+def plot_error_hist(err_old: torch.Tensor, err_new: torch.Tensor, threshold: float, title: str) -> None:
+    eold = err_old.detach().cpu().numpy()
+    enew = err_new.detach().cpu().numpy()
+    plt.figure()
+    plt.hist(eold, bins=40, alpha=0.5, label="Old")
+    plt.hist(enew, bins=40, alpha=0.5, label="New")
+    plt.axvline(threshold, linestyle="--", label="Threshold")
+    plt.title(title)
+    plt.xlabel("Reconstruction error")
+    plt.ylabel("Count")
+    plt.legend()
+    plt.show()
+
+def main() -> None:
+    """
+    Main function for running the experiment.
+
+    It runs the pipeline with the default configuration, prints the results,
+    and plots the error histograms and sensitivity curve.
+
+    """
+    cfg = SimConfig()
+    device = get_device()
+    print(f"Device: {device}")
+
+    err_old, err_new, threshold, old_mean, old_std, new_mean, frac_new_above = run_pipeline(cfg)
 
     print("\n--- Drift results ---")
     print(f"Old reconstruction error mean = {old_mean:.6f}")
@@ -432,6 +471,21 @@ def main() -> None:
         print("Strong drift signal (mean above threshold).")
     else:
         print("Weak drift signal at mean-level.")
+
+    # Plot error histograms for the baseline cfg
+    plot_error_hist(err_old, err_new, threshold, title=f"Reconstruction error (drift_shift={cfg.drift_shift})")
+
+    # Plot sensitivity curve
+    drift_values = [0.0, 0.2, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+    fracs = sensitivity_curve(cfg, drift_values)
+
+    plt.figure()
+    plt.plot(drift_values, fracs, marker="o")
+    plt.xlabel("drift_shift")
+    plt.ylabel("fraction(new error > threshold)")
+    plt.title("Sensitivity: drift_shift vs detection rate")
+    plt.ylim(-0.05, 1.05)
+    plt.show()
 
 
 if __name__ == "__main__":
