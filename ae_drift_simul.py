@@ -4,11 +4,11 @@ ae_drift_simul.py
 Purpose
 -------
 A simulation of concept drift detection using:
-1) learned representations (last hidden layer embeddings) from a small DNN
+1) learned representations (last hidden layer embeddings) from a DNN
 2) autoencoder reconstruction error as a drift signal (thresholding with 3-σ)
 
-This is not the full streaming pipeline of the paper.
-It's a first step to validate the core mechanism end-to-end.
+This isn't the full streaming pipeline of the paper.
+It's a first step to validate the core mechanism.
 
 """
 
@@ -54,7 +54,7 @@ class SimConfig:
 
     # Drift (mean drift on first drift_dims features)
     drift_dims: int = 5
-    drift_shift: float = 1.0
+    drift_shift: float = 2.75
 
     # MLP pretrain task (simple regression target)
     target_noise_std: float = 0.1
@@ -185,7 +185,7 @@ class MLPRepresentation(nn.Module):
         """
         super().__init__()
         self.fc1 = nn.Linear(in_dim, hidden1)
-        self.fc2 = nn.Linear(hidden1, hidden2)  # last hidden layer
+        self.fc2 = nn.Linear(hidden1, hidden2)  # Last hidden layer
         self.head = nn.Linear(hidden2, out_dim)
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -366,9 +366,74 @@ def reconstr_errors(ae: AutoEncoder, Z: torch.Tensor, batch_size: int = 512) -> 
     for i in range(0, Z.shape[0], batch_size):
         zb = Z[i : i + batch_size]
         recon = ae(zb)
-        # we calculate MSE per sample
+        # We calculate MSE per sample
         e = ((recon - zb) ** 2).mean(dim=1)
         errs.append(e)
     return torch.cat(errs, dim=0)
 
+
+def main() -> None:
+    """
+    Main function for the simulation.
+
+    It first sets the seed and gets the device.
+    Then it generates old and new data and targets.
+    It pretrains an MLP on the old data and extracts the last hidden layer embeddings for old and new data.
+    It trains an Autoencoder on the old embeddings and calculates the reconstruction errors for old and new data.
+    Finally, it calculates the mean and standard deviation of the old reconstruction errors and sets a threshold based on these statistics.
+    It then compares the mean of the new reconstruction errors to the threshold and prints out the results.
+    """
+    cfg = SimConfig()
+    set_seed(cfg.seed)
+    device = get_device()
+    print(f"Device: {device}")
+
+    # Data (old vs new)
+    X_old_train_np, X_old_eval_np, X_new_eval_np = gener_synthetic(cfg)
+    y_old_train_np = gener_regression_targets(X_old_train_np, cfg.target_noise_std)
+
+    X_old_train = to_tensor(X_old_train_np, device)
+    y_old_train = to_tensor(y_old_train_np, device)
+    X_old_eval = to_tensor(X_old_eval_np, device)
+    X_new_eval = to_tensor(X_new_eval_np, device)
+
+    # Pretrain MLP on old concept (so embeddings are meaningful)
+    mlp = MLPRepresentation(in_dim=cfg.n_features).to(device)
+    train_mlp(mlp, X_old_train, y_old_train, cfg)
+
+    # Extract last hidden embeddings for old/new data
+    Z_old = extract_embeddings(mlp, X_old_eval)
+    Z_new = extract_embeddings(mlp, X_new_eval)
+    print(f"Embeddings: Z_old={tuple(Z_old.shape)}, Z_new={tuple(Z_new.shape)}")
+
+    # Train AutoEncoder on old embeddings
+    ae = AutoEncoder(in_dim=Z_old.shape[1], latent=16).to(device)
+    train_ae(ae, Z_old, cfg)
+
+    # Drift signal using reconstruction error
+    err_old = reconstr_errors(ae, Z_old)
+    err_new = reconstr_errors(ae, Z_new)
+
+    old_mean = err_old.mean().item()
+    old_std = err_old.std(unbiased=False).item()
+    threshold = old_mean + cfg.sigma_k * old_std
+
+    new_mean = err_new.mean().item()
+    frac_new_above = (err_new > threshold).float().mean().item()
+
+    print("\n--- Drift results ---")
+    print(f"Old reconstruction error mean = {old_mean:.6f}")
+    print(f"Old reconstruction error std  = {old_std:.6f}")
+    print(f"{cfg.sigma_k:.1f}-sigma threshold  = {threshold:.6f}")
+    print(f"New reconstruction error mean = {new_mean:.6f}")
+    print(f"Fraction new samples above threshold = {frac_new_above:.3f}")
+
+    if new_mean > threshold:
+        print("Strong drift signal (mean above threshold).")
+    else:
+        print("Weak drift signal at mean-level.")
+
+
+if __name__ == "__main__":
+    main()
 
