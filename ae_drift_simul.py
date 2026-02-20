@@ -87,10 +87,10 @@ def gener_synthetic(cfg: SimConfig) -> tuple[np.ndarray, np.ndarray, np.ndarray]
     """
     n = cfg.n_features
     X_old_train = np.random.randn(cfg.n_train_old, n).astype(np.float32)
-    X_old_eval = np.random.randn(cfg.n_eval_old, n).astype(np.float32)
+    X_old_eval = np.random.randn(cfg.n_eval_old, n).astype(np.float32) #not used yet
 
     X_new_eval = np.random.randn(cfg.n_eval_new, n).astype(np.float32)
-    X_new_eval[:, : cfg.drift_dims] += cfg.drift_shift  # mean drift
+    X_new_eval[:, : cfg.drift_dims] += cfg.drift_shift # mean drift
     return X_old_train, X_old_eval, X_new_eval
 
 
@@ -391,25 +391,28 @@ def run_pipeline(cfg: SimConfig):
     train_mlp(mlp, X_old_train, y_old_train, cfg)
 
     # Extract embeddings
-    Z_old = extract_embeddings(mlp, X_old_eval)
+    Z_train_old = extract_embeddings(mlp, X_old_train) # baseline embeddings (train)
     Z_new = extract_embeddings(mlp, X_new_eval)
 
-    # Train AE on old embeddings
-    ae = AutoEncoder(in_dim=Z_old.shape[1], latent=16).to(device)
-    train_ae(ae, Z_old, cfg)
+    # Train AE on baseline embeddings
+    ae = AutoEncoder(in_dim=Z_train_old.shape[1], latent=16).to(device)
+    train_ae(ae, Z_train_old, cfg)
 
     # Reconstruction errors
-    err_old = reconstr_errors(ae, Z_old)
-    err_new = reconstr_errors(ae, Z_new)
+    err_train = reconstr_errors(ae, Z_train_old) 
+    err_new = reconstr_errors(ae, Z_new) 
 
-    # Drift signal
-    old_mean = err_old.mean().item()
-    old_std = err_old.std(unbiased=False).item()
-    threshold = old_mean + cfg.sigma_k * old_std
-    new_mean = err_new.mean().item()
-    frac_new_above = (err_new > threshold).float().mean().item()
+    # Threshold
+    mu = err_train.mean().item()
+    sigma = err_train.std(unbiased=False).item()
+    threshold = mu + cfg.sigma_k * sigma
 
-    return err_old, err_new, threshold, old_mean, old_std, new_mean, frac_new_above
+    # Per sample flags (drift/anomaly flags)
+    flagged = (err_new > threshold)
+    flag_fraction = flagged.float().mean().item()
+
+
+    return err_train, err_new, threshold, mu, sigma, flag_fraction, flagged
 
 def sensitivity_curve(cfg: SimConfig, drift_values: list[float]) -> list[float]:
     fracs_above_thr = []
@@ -429,8 +432,8 @@ def sensitivity_curve(cfg: SimConfig, drift_values: list[float]) -> list[float]:
             lr=cfg.lr,
             sigma_k=cfg.sigma_k,
         )
-        _, _, _, _, _, _, frac = run_pipeline(cfg_d)
-        fracs_above_thr.append(frac)
+        _, _, _, _, _, flag_fraction, _, _ = run_pipeline(cfg_d)
+        fracs_above_thr.append(flag_fraction)
     return fracs_above_thr
 
 def plot_error_hist(err_old: torch.Tensor, err_new: torch.Tensor, threshold: float, title: str) -> None:
@@ -458,22 +461,16 @@ def main() -> None:
     device = get_device()
     print(f"Device: {device}")
 
-    err_old, err_new, threshold, old_mean, old_std, new_mean, frac_new_above = run_pipeline(cfg)
+    err_base, err_new, threshold, mu, sigma, flag_fraction, flagged = run_pipeline(cfg)
 
-    print("\n--- Drift results ---")
-    print(f"Old reconstruction error mean = {old_mean:.6f}")
-    print(f"Old reconstruction error std  = {old_std:.6f}")
-    print(f"{cfg.sigma_k:.1f}-sigma threshold  = {threshold:.6f}")
-    print(f"New reconstruction error mean = {new_mean:.6f}")
-    print(f"Fraction new samples above threshold = {frac_new_above:.3f}")
-
-    if new_mean > threshold:
-        print("Strong drift signal (mean above threshold).")
-    else:
-        print("Weak drift signal at mean-level.")
+    print("\n--- Drift Detection results ---")
+    print(f"Baseline (train) error mean = {mu:.6f}")
+    print(f"Baseline (train) error std  = {sigma:.6f}")
+    print(f"{cfg.sigma_k:.1f}-sigma threshold (upper) = {threshold:.6f}")
+    print(f"Flagged fraction in new = {flag_fraction:.3f}")
 
     # Plot error histograms for the baseline cfg
-    plot_error_hist(err_old, err_new, threshold, title=f"Reconstruction error (drift_shift={cfg.drift_shift})")
+    plot_error_hist(err_base, err_new, threshold, title=f"Reconstruction error (drift_shift={cfg.drift_shift})")
 
     # Plot sensitivity curve
     drift_values = [0.0, 0.2, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
