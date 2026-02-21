@@ -87,7 +87,7 @@ def gener_synthetic(cfg: SimConfig) -> tuple[np.ndarray, np.ndarray, np.ndarray]
     """
     n = cfg.n_features
     X_old_train = np.random.randn(cfg.n_train_old, n).astype(np.float32)
-    X_old_eval = np.random.randn(cfg.n_eval_old, n).astype(np.float32) #not used yet
+    X_old_eval = np.random.randn(cfg.n_eval_old, n).astype(np.float32) # not used yet
 
     X_new_eval = np.random.randn(cfg.n_eval_new, n).astype(np.float32)
     X_new_eval[:, : cfg.drift_dims] += cfg.drift_shift # mean drift
@@ -186,7 +186,7 @@ class MLPRepresentation(nn.Module):
         """
         super().__init__()
         self.fc1 = nn.Linear(in_dim, hidden1)
-        self.fc2 = nn.Linear(hidden1, hidden2)  # Last hidden layer
+        self.fc2 = nn.Linear(hidden1, hidden2) # Last hidden layer
         self.head = nn.Linear(hidden2, out_dim)
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -372,8 +372,22 @@ def reconstr_errors(ae: AutoEncoder, Z: torch.Tensor, batch_size: int = 512) -> 
         errs.append(e)
     return torch.cat(errs, dim=0)
 
-def run_pipeline(cfg: SimConfig):
-    
+def run_pipeline(cfg: SimConfig): 
+    """
+    Run the pipeline for the drift detection experiment.
+
+    Parameters
+    ----------
+    cfg : SimConfig
+        The simulation configuration.
+
+    Returns
+    -------
+    tuple[torch.Tensor, torch.Tensor, float, float, float, float, torch.Tensor]
+        A tuple containing the baseline (train) reconstruction errors, the new concept reconstruction errors,
+        the threshold used for drift detection, the mean and standard deviation of the baseline reconstruction errors,
+        the fraction of new samples flagged as drifted, and the per sample flags (drift/anomaly flags).
+    """
     set_seed(cfg.seed)
     device = get_device()
 
@@ -414,7 +428,26 @@ def run_pipeline(cfg: SimConfig):
 
     return err_train, err_new, threshold, mu, sigma, flag_fraction, flagged
 
-def sensitivity_curve(cfg: SimConfig, drift_values: list[float]) -> list[float]:
+def sensitivity_curve(cfg: SimConfig, drift_values: list[float]) -> list[float]:    
+    """
+    Calculate the sensitivity curve of the drift detection algorithm.
+
+    The sensitivity curve is a plot of the fraction of new samples flagged as drifted
+    vs the drift shift value. This curve can be used to evaluate the performance
+    of the algorithm and to select the optimal hyperparameters.
+
+    Parameters
+    ----------
+    cfg : SimConfig
+        The simulation configuration.
+    drift_values : list[float]
+        The list of drift shift values for which the sensitivity curve should be calculated.
+
+    Returns
+    -------
+    list[float]
+        A list containing the fraction of new samples flagged as drifted for each drift shift value.
+    """
     fracs_above_thr = []
     for d in drift_values:
         cfg_d = SimConfig(
@@ -432,11 +465,26 @@ def sensitivity_curve(cfg: SimConfig, drift_values: list[float]) -> list[float]:
             lr=cfg.lr,
             sigma_k=cfg.sigma_k,
         )
-        _, _, _, _, _, flag_fraction, _, _ = run_pipeline(cfg_d)
+        _, _, _, _, _, flag_fraction, _ = run_pipeline(cfg_d)
         fracs_above_thr.append(flag_fraction)
     return fracs_above_thr
 
 def plot_error_hist(err_old: torch.Tensor, err_new: torch.Tensor, threshold: float, title: str) -> None:
+    """
+    Plot a histogram of the old and new reconstruction errors, along with a vertical line
+    indicating the threshold used for drift detection.
+
+    Parameters
+    ----------
+    err_old : torch.Tensor
+        The reconstruction errors of the old concept.
+    err_new : torch.Tensor
+        The reconstruction errors of the new concept.
+    threshold : float
+        The threshold used for drift detection.
+    title : str
+        The title of the plot.
+    """
     eold = err_old.detach().cpu().numpy()
     enew = err_new.detach().cpu().numpy()
     plt.figure()
@@ -452,10 +500,8 @@ def plot_error_hist(err_old: torch.Tensor, err_new: torch.Tensor, threshold: flo
 def main() -> None:
     """
     Main function for running the experiment.
-
     It runs the pipeline with the default configuration, prints the results,
-    and plots the error histograms and sensitivity curve.
-
+    and plots the reconstruction error histograms and sensitivity curve.
     """
     cfg = SimConfig()
     device = get_device()
@@ -473,7 +519,7 @@ def main() -> None:
     plot_error_hist(err_base, err_new, threshold, title=f"Reconstruction error (drift_shift={cfg.drift_shift})")
 
     # Plot sensitivity curve
-    drift_values = [0.0, 0.2, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+    drift_values = [0.0, 0.2, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0]
     fracs = sensitivity_curve(cfg, drift_values)
 
     plt.figure()
