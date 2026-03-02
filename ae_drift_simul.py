@@ -87,7 +87,7 @@ def gener_synthetic(cfg: SimConfig) -> tuple[np.ndarray, np.ndarray, np.ndarray]
     """
     n = cfg.n_features
     X_old_train = np.random.randn(cfg.n_train_old, n).astype(np.float32)
-    X_old_eval = np.random.randn(cfg.n_eval_old, n).astype(np.float32) # not used yet
+    X_old_eval = np.random.randn(cfg.n_eval_old, n).astype(np.float32)
 
     X_new_eval = np.random.randn(cfg.n_eval_new, n).astype(np.float32)
     X_new_eval[:, : cfg.drift_dims] += cfg.drift_shift # mean drift
@@ -406,7 +406,8 @@ def run_pipeline(cfg: SimConfig):
 
     # Extract embeddings
     Z_train_old = extract_embeddings(mlp, X_old_train) # baseline embeddings (train)
-    Z_new = extract_embeddings(mlp, X_new_eval)
+    Z_old_eval = extract_embeddings(mlp, X_old_eval) # for threshold calibration
+    Z_new = extract_embeddings(mlp, X_new_eval) # for drift testing
 
     # Train AE on baseline embeddings
     ae = AutoEncoder(in_dim=Z_train_old.shape[1], latent=16).to(device)
@@ -414,11 +415,12 @@ def run_pipeline(cfg: SimConfig):
 
     # Reconstruction errors
     err_train = reconstr_errors(ae, Z_train_old) 
+    err_old_eval = reconstr_errors(ae, Z_old_eval)
     err_new = reconstr_errors(ae, Z_new) 
 
     # Threshold
-    mu = err_train.mean().item()
-    sigma = err_train.std(unbiased=False).item()
+    mu = err_old_eval.mean().item()
+    sigma = err_old_eval.std(unbiased = False).item()
     threshold = mu + cfg.sigma_k * sigma
 
     # Per sample flags (drift/anomaly flags)
@@ -426,7 +428,7 @@ def run_pipeline(cfg: SimConfig):
     flag_fraction = flagged.float().mean().item()
 
 
-    return err_train, err_new, threshold, mu, sigma, flag_fraction, flagged
+    return err_old_eval, err_new, threshold, mu, sigma, flag_fraction, flagged
 
 def sensitivity_curve(cfg: SimConfig, drift_values: list[float]) -> list[float]:    
     """
@@ -507,7 +509,7 @@ def main() -> None:
     device = get_device()
     print(f"Device: {device}")
 
-    err_base, err_new, threshold, mu, sigma, flag_fraction, flagged = run_pipeline(cfg)
+    err_base_eval, err_new, threshold, mu, sigma, flag_fraction, flagged = run_pipeline(cfg)
 
     print("\n--- Drift Detection results ---")
     print(f"Baseline (train) error mean = {mu:.6f}")
@@ -516,7 +518,7 @@ def main() -> None:
     print(f"Flagged fraction in new = {flag_fraction:.3f}")
 
     # Plot error histograms for the baseline cfg
-    plot_error_hist(err_base, err_new, threshold, title=f"Reconstruction error (drift_shift={cfg.drift_shift})")
+    plot_error_hist(err_base_eval, err_new, threshold, title=f"Reconstruction error (drift_shift={cfg.drift_shift})")
 
     # Plot sensitivity curve
     drift_values = [0.0, 0.2, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0]
