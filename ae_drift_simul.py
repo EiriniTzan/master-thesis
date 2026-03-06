@@ -87,7 +87,7 @@ def gener_synthetic(cfg: SimConfig) -> tuple[np.ndarray, np.ndarray, np.ndarray]
     """
     n = cfg.n_features
     X_old_train = np.random.randn(cfg.n_train_old, n).astype(np.float32)
-    X_old_eval = np.random.randn(cfg.n_eval_old, n).astype(np.float32)
+    X_old_eval = np.random.randn(cfg.n_eval_old, n).astype(np.float32) #not used
 
     X_new_eval = np.random.randn(cfg.n_eval_new, n).astype(np.float32)
     X_new_eval[:, : cfg.drift_dims] += cfg.drift_shift # mean drift
@@ -397,7 +397,6 @@ def run_pipeline(cfg: SimConfig):
 
     X_old_train = to_tensor(X_old_train_np, device)
     y_old_train = to_tensor(y_old_train_np, device)
-    X_old_eval = to_tensor(X_old_eval_np, device)
     X_new_eval = to_tensor(X_new_eval_np, device)
 
     # Pretrain MLP on old concept
@@ -406,7 +405,6 @@ def run_pipeline(cfg: SimConfig):
 
     # Extract embeddings
     Z_train_old = extract_embeddings(mlp, X_old_train) # baseline embeddings (train)
-    Z_old_eval = extract_embeddings(mlp, X_old_eval) # for threshold calibration
     Z_new = extract_embeddings(mlp, X_new_eval) # for drift testing
 
     # Train AE on baseline embeddings
@@ -415,12 +413,11 @@ def run_pipeline(cfg: SimConfig):
 
     # Reconstruction errors
     err_train = reconstr_errors(ae, Z_train_old) 
-    err_old_eval = reconstr_errors(ae, Z_old_eval)
     err_new = reconstr_errors(ae, Z_new) 
 
     # Threshold
-    mu = err_old_eval.mean().item()
-    sigma = err_old_eval.std(unbiased = False).item()
+    mu = err_train.mean().item()
+    sigma = err_train.std(unbiased = False).item()
     threshold = mu + cfg.sigma_k * sigma
 
     # Per sample flags (drift/anomaly flags)
@@ -428,7 +425,7 @@ def run_pipeline(cfg: SimConfig):
     flag_fraction = flagged.float().mean().item()
 
 
-    return err_old_eval, err_new, threshold, mu, sigma, flag_fraction, flagged
+    return err_train, err_new, threshold, mu, sigma, flag_fraction, flagged
 
 def sensitivity_curve(cfg: SimConfig, drift_values: list[float]) -> list[float]:    
     """
