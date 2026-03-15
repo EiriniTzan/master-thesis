@@ -19,6 +19,18 @@ class StreamDNN(nn.Module):
         base_model: DNNBase,
         freeze_before_layer: int,
     ) -> None:
+        """
+        Initialize the StreamDNN instance.
+
+        Parameters
+        ----------
+        base_model : DNNBase
+            The pre-trained reference DNN model.
+        freeze_before_layer : int
+            The index of the hidden layer up to which the model should be frozen.
+            The output layer will always be trainable.
+        """
+        
         super().__init__()
 
         self.stream_model = deepcopy(base_model)

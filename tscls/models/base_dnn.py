@@ -31,11 +31,8 @@ class DNNBase(nn.Module):
             List of hidden layer dimensions.
         output_dim : int
             Number of output features.
-
-        Returns
-        -------
-        None
         """
+        
         super().__init__()
 
         self.hidden_layers = nn.ModuleList()

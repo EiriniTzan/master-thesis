@@ -20,6 +20,21 @@ class Autoencoder(nn.Module):
         input_dim: int,
         embedding_dim: int,
     ) -> None:
+        """
+        Initialize the Autoencoder instance.
+
+        Parameters
+        ----------
+        input_dim : int
+            The number of input features.
+        embedding_dim : int
+            The number of latent features.
+
+        Returns
+        -------
+        None
+        """
+        
         super().__init__()
 
         self.encoder = nn.Sequential(
