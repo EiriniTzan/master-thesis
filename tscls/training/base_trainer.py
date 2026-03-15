@@ -6,7 +6,7 @@ from tscls.models.base_dnn import DNNBase
 
 class BaseTrainer:
     """
-    Trainer for the reference DNN model.
+    Trainer for the reference DNN model (Model 1).
     This trainer fits the reference classifier on the non-drift data
     and extracts the latent representations from the last hidden layer
     after training.
