@@ -18,32 +18,32 @@ class Autoencoder(nn.Module):
     def __init__(
         self,
         input_dim: int,
-        embedding_dim: int,
-    ) -> None:
+        compressed_dim: int,
+    ) -> None:    
         """
         Initialize the Autoencoder instance.
 
         Parameters
         ----------
         input_dim : int
-            The number of input features.
-        embedding_dim : int
-            The number of latent features.
+            The number of features in the latent space produced by the classifier.
+        compressed_dim : int
+            The number of features in the compressed latent space.
 
         Returns
         -------
         None
         """
-        
+
         super().__init__()
 
         self.encoder = nn.Sequential(
-            nn.Linear(input_dim, embedding_dim),
+            nn.Linear(input_dim, compressed_dim),
             nn.ReLU(),
         )
 
         self.decoder = nn.Sequential(
-            nn.Linear(embedding_dim, input_dim),
+            nn.Linear(compressed_dim, input_dim),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
