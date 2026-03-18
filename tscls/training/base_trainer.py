@@ -15,23 +15,53 @@ class BaseTrainer:
     def __init__(
         self,
         loss_function: nn.Module,
+        gamma1: float,
+        s1: int,
         device: str | None = None,
     ) -> None:
         """
-        Initialize a BaseTrainer instance.
+        Initialize the BaseTrainer instance.
 
         Parameters
         ----------
         loss_function : nn.Module
-            Loss function used for training.
+            Loss function used for training the reference DNN model.
+        gamma1 : float
+            Hyperparameter used to control the learning rate update.
+        s1 : int
+            Step size at which the learning rate is updated.
         device : str | None, optional
             Device on which computations should be performed. If None,
             it will be determined automatically ("cuda" if available, otherwise "cpu").
-            Defaults to None.
         """
 
+        if s1 <= 0:
+            raise ValueError("s1 must be a positive integer.")
+        if not (0.0 < gamma1 <= 1.0):
+            raise ValueError("gamma1 must be in the interval (0, 1].")
+
         self.loss_function = loss_function
+        self.gamma1 = gamma1
+        self.s1 = s1
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+
+    def _update_learning_rate(
+        self,
+        optimizer: torch.optim.Optimizer,
+    ) -> None:
+        """
+        Update the learning rate of the optimizer according to the gamma1 hyperparameter.
+
+        This method is used to update the learning rate of the optimizer every s1 epochs.
+
+        Parameters
+        ----------
+        optimizer : torch.optim.Optimizer
+            The optimizer whose learning rate should be updated.
+        """
+
+        for param_group in optimizer.param_groups:
+            param_group["lr"] *= self.gamma1
 
     def train_model(
         self,
@@ -42,16 +72,16 @@ class BaseTrainer:
         epochs: int,
     ) -> list[float]:
         """
-        Train a DNNBase instance on the non-drift data.
+        Train the reference DNN model on the non-drift data.
 
         Parameters
         ----------
         model : DNNBase
-            The model to be trained.
+            The reference DNN model to be trained.
         x_reference : torch.Tensor
-            The input data for the non-drift class.
+            The input data for training the reference DNN model.
         y_reference : torch.Tensor
-            The target data for the non-drift class.
+            The target data for training the reference DNN model.
         optimizer : torch.optim.Optimizer
             The optimizer to be used for training.
         epochs : int
@@ -60,15 +90,17 @@ class BaseTrainer:
         Returns
         -------
         list[float]
-            A list of the training losses at each epoch.
+            A list of training losses at each epoch.
         """
-
+        
         model.to(self.device)
         model.train()
 
         x_reference = x_reference.to(self.device)
-        y_reference = y_reference.to(self.device).float()
-        losses = []
+        y_reference = y_reference.to(self.device).float().view(-1,1)
+
+        losses: list[float] = []
+        step_count = 0
 
         for _ in range(epochs):
             optimizer.zero_grad()
@@ -80,6 +112,10 @@ class BaseTrainer:
             optimizer.step()
 
             losses.append(float(loss.item()))
+            step_count += 1
+
+            if step_count % self.s1 == 0:
+                self._update_learning_rate(optimizer)
 
         return losses
 
@@ -89,21 +125,20 @@ class BaseTrainer:
         x_reference: torch.Tensor,
     ) -> torch.Tensor:
         """
-        Extract latent representations from a DNNBase model.
+        Extract latent representations from a trained DNNBase model.
 
         Parameters
         ----------
         model : DNNBase
-            The model from which to extract the latent representations.
+            The model from which to extract latent representations.
         x_reference : torch.Tensor
             Input data for the model.
 
         Returns
         -------
         torch.Tensor
-            The extracted latent representations.
+            Extracted latent representations.
         """
-
         model.to(self.device)
         model.eval()
 
