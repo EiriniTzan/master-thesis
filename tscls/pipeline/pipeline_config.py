@@ -30,17 +30,14 @@ class AutoencoderConfig:
     ----------
     input_dim : int
         Dimensionality of the latent representation.
-    encoder_dims : list[int]
-        Hidden-layer dimensions of the encoder network.
-    decoder_dims : list[int]
-        Hidden-layer dimensions of the decoder network.
+    hidden_dim : int
+        The number of neurons in the hidden layer of the autoencoder.
     threshold_k : float
         Multiplicative factor used by the thresholding rule.
     """
 
     input_dim: int
-    encoder_dims: list[int]
-    decoder_dims: list[int]
+    hidden_dim: int
     threshold_k: float = 3.0
 
 
