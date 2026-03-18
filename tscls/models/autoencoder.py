@@ -16,35 +16,103 @@ class Autoencoder(nn.Module):
     """
 
     def __init__(
-        self,
-        input_dim: int,
-        compressed_dim: int,
-    ) -> None:    
+            self,
+            input_dim: int,
+            encoder_dims: list[int],
+            decoder_dims: list[int],
+    ) -> None:
         """
         Initialize the Autoencoder instance.
 
         Parameters
         ----------
         input_dim : int
-            The number of features in the latent space produced by the classifier.
-        compressed_dim : int
-            The number of features in the compressed latent space.
+            Number of input features.
+        encoder_dims : list[int]
+            List of hidden layer dimensions for the encoder network.
+        decoder_dims : list[int]
+            List of hidden layer dimensions for the decoder network.
+        """
+        
+        super().__init__()
+
+        self.input_dim = input_dim
+        self.encoder_dims = encoder_dims
+        self.decoder_dims = decoder_dims
+
+        self.encoder = self._build_encoder(
+            input_dim = self.input_dim,
+            encoder_dims = self.encoder_dims,
+        )
+
+        self.decoder = self._build_decoder(
+            encoder_output_dim = self.encoder_dims[-1],
+            decoder_dims = self.decoder_dims
+        )
+
+    def _build_encoder(
+        self,
+        input_dim: int,
+        encoder_dims: list[int],
+    ) -> nn.Sequential:    
+        """
+        Build the encoder network.
+
+        Parameters
+        ----------
+        input_dim : int
+            The number of input features.
+        encoder_dims : list[int]
+            List of hidden layer dimensions for the encoder network.
 
         Returns
         -------
-        None
+        nn.Sequential
+            The encoder network.
+        """
+        
+        layers : list[nn.Module] = []
+        previous_dim = input_dim
+
+        for hidden_dim in encoder_dims:
+            layers.append(nn.Linear(previous_dim, hidden_dim))
+            layers.append(nn.ReLU())
+            previous_dim = hidden_dim
+
+        return nn.Sequential(*layers)
+
+    def _build_decoder(
+        self,
+        encoder_output_dim: int,
+        decoder_dims: list[int],
+    ) -> nn.Sequential:
+        """
+        Build the decoder network.
+
+        Parameters
+        ----------
+        encoder_output_dim : int
+            The number of output features of the encoder network.
+        decoder_dims : list[int]
+            List of hidden layer dimensions for the decoder network.
+
+        Returns
+        -------
+        nn.Sequential
+            The decoder network.
         """
 
-        super().__init__()
+        layers : list[nn.Module] = []
+        previous_dim = encoder_output_dim
 
-        self.encoder = nn.Sequential(
-            nn.Linear(input_dim, compressed_dim),
-            nn.ReLU(),
-        )
+        for hidden_dim in decoder_dims:
+            layers.append(nn.Linear(previous_dim, hidden_dim))
+            layers.append(nn.ReLU())
+            previous_dim = hidden_dim
+        
+        layers.append(nn.Linear(previous_dim, self.input_dim))
 
-        self.decoder = nn.Sequential(
-            nn.Linear(compressed_dim, input_dim),
-        )
+        return nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
