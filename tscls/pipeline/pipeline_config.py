@@ -134,7 +134,7 @@ class PipelineConfig:
 
     Attributes
     ----------
-    model : ModelConfig
+    model : DNNModelConfig
         Configuration of the DNN models.
     autoencoder : AutoencoderConfig
         Configuration of the autoencoder detector.
