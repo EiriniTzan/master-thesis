@@ -204,18 +204,22 @@ class DNNAEDDPipeline:
         x_scaled = self.scaler.transform(x_np)
         return torch.tensor(x_scaled[0], dtype=torch.float32)
 
-    def _initialize_stream_model(self):
+    def _initialize_stream_model(self) -> None:
         """
-        Initialize the StreamDNN model by copying the base model and freezing
-        the hidden layers up to the specified layer index.
+        Initialize the StreamDNN model.
+
+        The StreamDNN model is initialized based on the pre-trained
+        reference DNN model and the freeze_before_layer hyperparameter.
+        The StreamDNN model is then used for online drift detection.
         """
         
-        self.stream_model = StreamDNN(self.base_model)
-        self.stream_model.freeze_hidden_layers(
-            freeze_before_layer=self.config.stream.freeze_before_layer
-        )
+        self.stream_model = StreamDNN(
+            base_model=self.base_model,
+            freeze_before_layer=self.config.stream.freeze_before_layer,
+            )
+        
 
-    def _calibrate_threshold(self, latents: torch.Tensor):
+    def _calibrate_threshold(self, latents: torch.Tensor) -> None:
         """
         Calibrate the thresholding rule using the reconstruction errors of the
         autoencoder on the reference latent representations.
