@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 from sklearn.preprocessing import StandardScaler
 
 from tscls.core.results import StepResult, PipelineResult
@@ -185,24 +186,23 @@ class DNNAEDDPipeline:
         x_scaled = self.scaler.fit_transform(x_np)
         return torch.tensor(x_scaled, dtype=torch.float32)
 
-    def _transform_stream_sample(self, x: torch.Tensor) -> torch.Tensor:
+    def _transform_stream_sample(self, x: np.ndarray) -> np.ndarray:
         """
-        Transform a single stream sample by scaling it using the reference scaler.
+        Transform a stream sample using the reference scaler.
 
         Parameters
         ----------
-        x : torch.Tensor
-            The input stream sample to be transformed.
+        x : np.ndarray
+            The stream sample to be transformed.
 
         Returns
         -------
-        torch.Tensor
+        np.ndarray
             The transformed stream sample.
         """
-
-        x_np = x.detach().cpu().numpy().reshape(1, -1)
-        x_scaled = self.scaler.transform(x_np)
-        return torch.tensor(x_scaled[0], dtype=torch.float32)
+        
+        x_scaled = self.scaler.transform(x.reshape(1, -1))
+        return x_scaled[0].astype(np.float32)
 
     def _initialize_stream_model(self) -> None:
         """
@@ -326,12 +326,8 @@ class DNNAEDDPipeline:
             A StepResult object containing the result of the online step.
         """
         
-        scaled_x = self._transform_stream_sample(
-           torch.tensor(sample.x, dtype=torch.float32)
-           ).detach().cpu().numpy()
-
         scaled_sample = Sample(
-            x=scaled_x,
+            x=self._transform_stream_sample(sample.x),
             y=sample.y,
             index=sample.index,
         )

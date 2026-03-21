@@ -94,7 +94,7 @@ class StreamTrainer:
         model.to(self.device)
         model.train()
 
-        x = sample.x.to(self.device).unsqueeze(0)
+        x = torch.tensor(sample.x, dtype=torch.float32, device=self.device).unsqueeze(0)
         y = torch.tensor([[sample.y]], dtype=torch.float32, device=self.device)
 
         optimizer.zero_grad()
