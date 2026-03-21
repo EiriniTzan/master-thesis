@@ -326,8 +326,12 @@ class DNNAEDDPipeline:
             A StepResult object containing the result of the online step.
         """
         
+        scaled_x = self._transform_stream_sample(
+           torch.tensor(sample.x, dtype=torch.float32)
+           ).detach().cpu().numpy()
+
         scaled_sample = Sample(
-            x=self._transform_stream_sample(sample.x),
+            x=scaled_x,
             y=sample.y,
             index=sample.index,
         )
@@ -394,7 +398,11 @@ class DNNAEDDPipeline:
         while stream.has_next_sample():
             x, y, i = stream.next_sample()
 
-            sample = Sample(x=x, y=y, index=i)
+            sample = Sample(
+                x=x.detach().cpu().numpy() if isinstance(x, torch.Tensor) else x,
+                y=int(y.item()) if isinstance(y, torch.Tensor) else y,
+                index=i,
+            )
 
             step_result = self.online_step(
                 sample=sample,
