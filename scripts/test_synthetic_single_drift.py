@@ -86,9 +86,8 @@ def generate_synthetic_data(
     x_stream_after = x_full[2 * part_size:].copy()
     y_stream_after = y_full[2 * part_size:].copy()
 
-    # Choose a random feature for drift, excluding feature 0 because
-    # we use it for label generation
-    drift_feature = int(rng.integers(1, num_features))
+    # Choose a random feature for drift
+    drift_feature = int(rng.integers(0, num_features))
 
     # Replace the values of the chosen feature in the post-drift dataset
     # with random numbers between 0 and 1
@@ -133,12 +132,12 @@ def build_config(num_features: int) -> PipelineConfig:
     return PipelineConfig(
         model=DNNModelConfig(
             input_dim=num_features,
-            hidden_dims=[32, 16, 8],
+            hidden_dims=[256, 128, 64],
             output_dim=1,
         ),
         autoencoder=AutoencoderConfig(
-            input_dim=8,   
-            hidden_dim=4,
+            input_dim=64,   
+            hidden_dim=8,
             threshold_k=3.0,
         ),
         stream=StreamConfig(
@@ -150,14 +149,14 @@ def build_config(num_features: int) -> PipelineConfig:
             stream_loss_name="bce_with_logits",
             base_optimizer_name="sgd",
             ae_optimizer_name="adam",
-            stream_optimizer_name="adam",
+            stream_optimizer_name="sgd",
             base_learning_rate=1e-2,
-            ae_learning_rate=1e-3,
-            stream_learning_rate=1e-3,
+            ae_learning_rate=1e-4,
+            stream_learning_rate=1e-4,
             gamma1=0.9,
-            s1=5,
+            s1=20,
             gamma2=1.0,
-            s2=20,
+            s2=10,
         ),
         training=TrainingConfig(
             base_epochs=30,
@@ -183,7 +182,7 @@ def main() -> None:
     None
     """
 
-    num_features = 5
+    num_features = 3
 
     (
         x_reference,
@@ -193,7 +192,7 @@ def main() -> None:
         drift_index,
         drift_feature,
     ) = generate_synthetic_data(
-        total_samples=900,
+        total_samples=9999,
         num_features=num_features,
         seed=42,
     )
