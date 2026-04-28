@@ -70,6 +70,7 @@ class BaseTrainer:
         y_reference: torch.Tensor,
         optimizer: torch.optim.Optimizer,
         epochs: int,
+        batch_size: int,
     ) -> list[float]:
         """
         Train the reference DNN model on the non-drift data.
@@ -86,35 +87,48 @@ class BaseTrainer:
             The optimizer to be used for training.
         epochs : int
             The number of epochs to train the model.
+        batch_size : int
+            Number of samples per mini-batch.
 
         Returns
         -------
         list[float]
-            A list of training losses at each epoch.
+            A list of mean training losses, one value per epoch.
         """
-        
+
         model.to(self.device)
         model.train()
 
         x_reference = x_reference.to(self.device)
-        y_reference = y_reference.to(self.device).float().view(-1,1)
+        y_reference = y_reference.to(self.device).float().view(-1, 1)
+        n = x_reference.shape[0]
 
         losses: list[float] = []
-        step_count = 0
 
-        for _ in range(epochs):
-            optimizer.zero_grad()
+        for epoch in range(epochs):
+            perm = torch.randperm(n, device=self.device)
+            x_shuffled = x_reference[perm]
+            y_shuffled = y_reference[perm]
 
-            logits = model(x_reference)
-            loss = self.loss_function(logits, y_reference)
+            epoch_loss = 0.0
+            n_batches = 0
 
-            loss.backward()
-            optimizer.step()
+            for start in range(0, n, batch_size):
+                x_batch = x_shuffled[start : start + batch_size]
+                y_batch = y_shuffled[start : start + batch_size]
 
-            losses.append(float(loss.item()))
-            step_count += 1
+                optimizer.zero_grad()
+                logits = model(x_batch)
+                loss = self.loss_function(logits, y_batch)
+                loss.backward()
+                optimizer.step()
 
-            if step_count % self.s1 == 0:
+                epoch_loss += float(loss.item())
+                n_batches += 1
+
+            losses.append(epoch_loss / n_batches)
+
+            if (epoch + 1) % self.s1 == 0:
                 self._update_learning_rate(optimizer)
 
         return losses

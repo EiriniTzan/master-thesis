@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Iterable, Tuple
+from typing import Tuple
 
 import torch
 import torch.nn as nn
@@ -9,67 +9,48 @@ from tscls.models.base_dnn import DNNBase
 
 class StreamDNN(nn.Module):
     """
-    Online streaming DNN model used during the drift detection phase.
-    This model starts from a pre-trained reference DNN and freezes the early hidden
-    layers. However, it keeps the last hidden layer and output layer trainable.
+    Online streaming DNN used during the drift detection phase (Algorithm 3).
+
+    Deep-copies the pre-trained base DNN, then freezes all layers except
+    the last hidden linear (W(L)_F, b(L)_F). Only that layer is updated
+    per sample so the AE can detect the resulting latent shift after drift.
     """
 
-    def __init__(
-        self,
-        base_model: DNNBase,
-        freeze_before_layer: int,
-    ) -> None:
+    def __init__(self, base_model: DNNBase) -> None:
         """
-        Initialize the StreamDNN instance.
-
         Parameters
         ----------
         base_model : DNNBase
             The pre-trained reference DNN model.
-        freeze_before_layer : int
-            The index of the hidden layer up to which the model should be frozen.
-            The output layer will always be trainable.
         """
-        
+
         super().__init__()
 
         self.stream_model = deepcopy(base_model)
-        self.freeze_hidden_layers(freeze_before_layer)
+        self._freeze_layers()
 
-    def freeze_hidden_layers(self, freeze_before_layer: int) -> None:
+    def _freeze_layers(self) -> None:
         """
-        Freeze all hidden layers up to the given layer index.
-        The output layer will always be trainable.
-        Parameters
-        ----------
-        freeze_before_layer : int
-            The index of the last hidden layer to be frozen.
+        Freeze all layers except the last hidden linear (Algorithm 3, paper).
+
+        The first hidden layers and the output layer are frozen.
+        Only W(L)_F and b(L)_F (last hidden linear) remain trainable
+        so that the AE can detect the latent shift after drift.
         """
 
-        for layer_index, hidden_layer in enumerate(self.stream_model.hidden_layers):
-            is_trainable = layer_index >= freeze_before_layer
+        for param in self.stream_model.parameters():
+            param.requires_grad = False
 
-            for param in hidden_layer.parameters():
-                param.requires_grad = is_trainable
-
-        for param in self.stream_model.output_layer.parameters():
+        for param in self.stream_model.last_hidden_layer.parameters():
             param.requires_grad = True
 
-    def trainable_parameters(self) -> Iterable[nn.Parameter]:
-        """
-        Returns an iterable of the trainable parameters of the model.
-    
-        Yields
-        -------
-        Iterable[nn.Parameter]
-            An iterable of the trainable parameters of the model.
-        """
-
-        return (
-            param
-            for param in self.parameters()
-            if param.requires_grad
+        self._trainable_params: list[nn.Parameter] = list(
+            self.stream_model.last_hidden_layer.parameters()
         )
+
+    def trainable_parameters(self) -> list[nn.Parameter]:
+        """Pre-computed trainable parameters (last hidden layer only)."""
+        return self._trainable_params
 
     def forward_with_latent(
         self,

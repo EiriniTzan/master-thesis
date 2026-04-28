@@ -8,17 +8,15 @@ class DNNModelConfig:
 
     Attributes
     ----------
-    input_dim : int
-        Number of input features.
-    hidden_dims : list[int]
-        Sizes of the hidden layers.
-    output_dim : int
-        Number of output units.
+    layer_sizes : list[int]
+        Full list of layer sizes from input to output,
+        e.g. ``[3, 256, 128, 64, 1]``. Must have at least three elements.
+    activation : str
+        Activation function applied after each hidden layer.
     """
 
-    input_dim: int
-    hidden_dims: list[int] = field(default_factory=lambda: [256, 128, 64])
-    output_dim: int = 1
+    layer_sizes: list[int]
+    activation: str = "relu"
 
 
 @dataclass(slots=True)
@@ -28,31 +26,20 @@ class AutoencoderConfig:
 
     Attributes
     ----------
-    input_dim : int
-        Dimensionality of the latent representation.
-    hidden_dim : int
-        The number of neurons in the hidden layer of the autoencoder.
+    encoder_sizes : list[int]
+        Layer sizes for the encoder, from input (latent dim) to bottleneck.
+        Must have at least three elements, e.g. ``[64, 32, 8]``.
+        The decoder is built as the mirror image automatically.
+    activation : str
+        Activation function used between layers (``"relu"``, ``"tanh"``,
+        or ``"snake"``).
     threshold_k : float
-        Multiplicative factor used by the thresholding rule.
+        Multiplicative factor used by the k-sigma thresholding rule.
     """
 
-    input_dim: int
-    hidden_dim: int
+    encoder_sizes: list[int]
+    activation: str = "relu"
     threshold_k: float = 3.0
-
-
-@dataclass(slots=True)
-class StreamConfig:
-    """
-    Configuration of the adaptive stream model.
-
-    Attributes
-    ----------
-    freeze_until_layer : int
-        Hidden layers with index smaller than this value are frozen.
-    """
-
-    freeze_before_layer: int = 2
 
 
 @dataclass(slots=True)
@@ -121,10 +108,14 @@ class TrainingConfig:
         Number of epochs used to train the reference DNN.
     ae_epochs : int
         Number of epochs used to train the autoencoder.
+    batch_size : int
+        Number of samples per mini-batch during offline training.
+        Applies to both the reference DNN and the autoencoder.
     """
 
     base_epochs: int = 20
     ae_epochs: int = 10
+    batch_size: int = 256
 
 
 @dataclass(slots=True)
@@ -138,8 +129,6 @@ class PipelineConfig:
         Configuration of the DNN models.
     autoencoder : AutoencoderConfig
         Configuration of the autoencoder detector.
-    stream : StreamConfig
-        Configuration of the stream adaptation phase.
     optimization : OptimizationConfig
         Configuration of optimization and learning-rate adaptation.
     training : TrainingConfig
@@ -151,7 +140,6 @@ class PipelineConfig:
 
     model: DNNModelConfig
     autoencoder: AutoencoderConfig
-    stream: StreamConfig = field(default_factory=StreamConfig)
     optimization: OptimizationConfig = field(default_factory=OptimizationConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
     device: str | None = None

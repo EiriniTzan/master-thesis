@@ -1,89 +1,70 @@
-from typing import List, Tuple
+from typing import Any, Tuple
 
 import torch
 import torch.nn as nn
+
+from tscls.models.builders import FeedforwardBuilder
 
 
 class DNNBase(nn.Module):
     """
     A fully connected feedforward deep neural network.
-    This model is used as the base classifier in the drift
-    detection pipeline.
+    Used as the base classifier (Model 1) in the drift detection pipeline.
 
-    The output of the last hidden layer is returned as a latent
-    representation, which is used by the autoencoder to detect potential drift.
+    Built from a single ``layer_sizes`` list via ``FeedforwardBuilder``.
+    Attributes
+    ----------
+    body : nn.Sequential
+        All hidden layers except the last (with activations).
+    last_hidden_layer : nn.Sequential
+        The last hidden linear + its activation. Its output is the
+        latent representation passed to the autoencoder.
+    output_layer : nn.Linear
+        Final linear projection with no activation.
     """
 
     def __init__(
         self,
-        input_dim: int,
-        hidden_dims: List[int],
-        output_dim: int,
+        layer_sizes: list[int],
+        activation: str = "relu",
+        **activation_kwargs: Any,
     ) -> None:
         """
-        Initialize the DNNBase instance.
-
         Parameters
         ----------
-        input_dim : int
-            Number of input features.
-        hidden_dims : List[int]
-            List of hidden layer dimensions.
-        output_dim : int
-            Number of output features.
+        layer_sizes : list[int]
+            Full list of layer sizes, e.g. ``[3, 256, 128, 64, 1]``.
+            Must have at least three elements.
+        activation : str
+            Activation function applied after each hidden layer.
+        **activation_kwargs :
+            Extra arguments forwarded to the activation builder.
         """
-        
         super().__init__()
 
-        self.hidden_layers = nn.ModuleList()
-        prev_dim = input_dim
-
-        for hidden_dim in hidden_dims:
-            self.hidden_layers.append(nn.Linear(prev_dim, hidden_dim))
-            prev_dim = hidden_dim
-
-        self.output_layer = nn.Linear(prev_dim, output_dim)
-        self.activation = nn.ReLU()
+        net = FeedforwardBuilder(layer_sizes, activation, **activation_kwargs)()
+        children = list(net.children())
+        self.body = nn.Sequential(*children[:-3])
+        self.last_hidden_layer = nn.Sequential(*children[-3:-1])
+        self.output_layer: nn.Linear = children[-1]
 
     def forward_with_latent(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Forward pass of the DNNBase instance returning both
-        classifier output and last hidden layer activation.
-
         Parameters
         ----------
         x : torch.Tensor
-            The input tensor.
 
         Returns
         -------
         tuple[torch.Tensor, torch.Tensor]
-            A tuple containing the classifier output and the last hidden layer activation.
+            ``(logits, latent)`` where ``latent`` is the output of
+            ``last_hidden_layer``.
         """
-
-        h = x
-        for layer in self.hidden_layers:
-            h = self.activation(layer(h))
-
-        latent = h
+        x = self.body(x)
+        latent = self.last_hidden_layer(x)
         logits = self.output_layer(latent)
-
         return logits, latent
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass of the DNNBase instance.
-
-        Parameters
-        ----------
-        x : torch.Tensor
-            The input tensor.
-
-        Returns
-        -------
-        torch.Tensor
-            The classifier output.
-        """
-
         logits, _ = self.forward_with_latent(x)
         return logits

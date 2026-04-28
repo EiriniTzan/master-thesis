@@ -16,7 +16,7 @@ class DetectionResult:
     drift_detected: bool
 
 
-class DriftDetector:
+class AEDetector:
     """
     Autoencoder-based drift detector.
 

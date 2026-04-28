@@ -39,6 +39,7 @@ class AETrainer:
         reference_latents: torch.Tensor,
         optimizer: torch.optim.Optimizer,
         epochs: int,
+        batch_size: int,
     ) -> list[float]:
         """
         Train the autoencoder on the reference latent representations.
@@ -53,29 +54,42 @@ class AETrainer:
             The optimizer to be used for training.
         epochs : int
             The number of epochs to train the model.
+        batch_size : int
+            Number of samples per mini-batch.
 
         Returns
         -------
         list[float]
-            A list of training losses at each epoch.
+            A list of mean training losses, one value per epoch.
         """
 
         autoencoder.to(self.device)
         autoencoder.train()
 
         reference_latents = reference_latents.to(self.device)
+        n = reference_latents.shape[0]
         losses: list[float] = []
 
         for _ in range(epochs):
-            optimizer.zero_grad()
+            perm = torch.randperm(n, device=self.device)
+            latents_shuffled = reference_latents[perm]
 
-            reconstructed = autoencoder(reference_latents)
-            loss = self.loss_function(reconstructed, reference_latents)
+            epoch_loss = 0.0
+            n_batches = 0
 
-            loss.backward()
-            optimizer.step()
+            for start in range(0, n, batch_size):
+                batch = latents_shuffled[start : start + batch_size]
 
-            losses.append(float(loss.item()))
+                optimizer.zero_grad()
+                reconstructed = autoencoder(batch)
+                loss = self.loss_function(reconstructed, batch)
+                loss.backward()
+                optimizer.step()
+
+                epoch_loss += float(loss.item())
+                n_batches += 1
+
+            losses.append(epoch_loss / n_batches)
 
         return losses
 
