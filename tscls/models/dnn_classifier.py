@@ -6,7 +6,7 @@ import torch.nn as nn
 from tscls.models.builders import FeedforwardBuilder
 
 
-class DNNBase(nn.Module):
+class DNNClassifier(nn.Module):
     """
     A fully connected feedforward deep neural network.
     Used as the base classifier (Model 1) in the drift detection pipeline.
@@ -40,6 +40,8 @@ class DNNBase(nn.Module):
         **activation_kwargs :
             Extra arguments forwarded to the activation builder.
         """
+        if len(layer_sizes) < 3:
+            raise ValueError("layer_sizes must have at least 3 elements.")
         super().__init__()
 
         net = FeedforwardBuilder(layer_sizes, activation, **activation_kwargs)()

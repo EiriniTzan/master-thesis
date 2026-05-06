@@ -35,10 +35,10 @@ class PipelineResult:
         Predictions produced over the full stream.
     training_losses : list[float]
         Online training losses collected during stream processing.
-    base_train_losses : list[float]
-        Training losses of the reference DNN during the reference phase.
-    ae_train_losses : list[float]
-        Training losses of the autoencoder during the reference phase.
+    model1_train_losses : list[float]
+        Training losses of Model 1 (reference DNN) during offline training.
+    model3_train_losses : list[float]
+        Training losses of Model 3 (autoencoder) during offline training.
     """
 
     step_results: list[StepResult] = field(default_factory=list)
@@ -46,5 +46,5 @@ class PipelineResult:
     reconstruction_errors: list[float] = field(default_factory=list)
     predictions: list[float] = field(default_factory=list)
     training_losses: list[float] = field(default_factory=list)
-    base_train_losses: list[float] = field(default_factory=list)
-    ae_train_losses: list[float] = field(default_factory=list)
+    model1_train_losses: list[float] = field(default_factory=list)
+    model3_train_losses: list[float] = field(default_factory=list)

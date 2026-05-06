@@ -72,8 +72,8 @@ class FeedforwardBuilder:
         activation: str = "relu",
         **activation_kwargs: Any,
     ) -> None:
-        if len(layer_sizes) < 3:
-            raise ValueError("layer_sizes must have at least 3 elements.")
+        if len(layer_sizes) < 2:
+            raise ValueError("layer_sizes must have at least 2 elements.")
         self.layer_sizes = layer_sizes
         self._activation_builder = ActivationBuilder(activation, **activation_kwargs)
 

@@ -50,45 +50,45 @@ class OptimizationConfig:
 
     Attributes
     ----------
-    base_loss_name : str
-        Loss function used for the reference DNN.
-    ae_loss_name : str
-        Loss function used for the autoencoder.
-    stream_loss_name : str
-        Loss function used for the adaptive DNN.
-    base_optimizer_name : str
-        Optimizer used for the reference DNN.
-    ae_optimizer_name : str
-        Optimizer used for the autoencoder.
-    stream_optimizer_name : str
-        Optimizer used for the adaptive DNN.
-    base_learning_rate : float
-        Initial learning rate for the reference DNN.
-    ae_learning_rate : float
-        Learning rate for the autoencoder.
-    stream_learning_rate : float
-        Initial learning rate for the adaptive DNN.
+    model1_loss_name : str
+        Loss function used for Model 1 (reference DNN).
+    model3_loss_name : str
+        Loss function used for Model 3 (autoencoder).
+    model2_loss_name : str
+        Loss function used for Model 2 (adaptive DNN).
+    model1_optimizer_name : str
+        Optimizer used for Model 1.
+    model3_optimizer_name : str
+        Optimizer used for Model 3.
+    model2_optimizer_name : str
+        Optimizer used for Model 2.
+    model1_learning_rate : float
+        Initial learning rate for Model 1.
+    model3_learning_rate : float
+        Learning rate for Model 3.
+    model2_learning_rate : float
+        Initial learning rate for Model 2.
     gamma1 : float
-        Learning-rate decay factor for the reference DNN.
+        Learning-rate decay factor for Model 1.
     s1 : int
         Step size controlling learning-rate updates during reference training.
     gamma2 : float
-        Learning-rate decay factor for the adaptive DNN.
+        Learning-rate decay factor for Model 2.
     s2 : int
         Step size controlling learning-rate updates during online adaptation.
     """
 
-    base_loss_name: str = "bce_with_logits"
-    ae_loss_name: str = "mse"
-    stream_loss_name: str = "bce_with_logits"
+    model1_loss_name: str = "bce_with_logits"
+    model3_loss_name: str = "mse"
+    model2_loss_name: str = "bce_with_logits"
 
-    base_optimizer_name: str = "sgd"
-    ae_optimizer_name: str = "adam"
-    stream_optimizer_name: str = "adam"
+    model1_optimizer_name: str = "sgd"
+    model3_optimizer_name: str = "adam"
+    model2_optimizer_name: str = "adam"
 
-    base_learning_rate: float = 1e-2
-    ae_learning_rate: float = 1e-4
-    stream_learning_rate: float = 1e-4
+    model1_learning_rate: float = 1e-2
+    model3_learning_rate: float = 1e-4
+    model2_learning_rate: float = 1e-4
 
     gamma1: float = 0.9
     s1: int = 20
@@ -104,17 +104,17 @@ class TrainingConfig:
 
     Attributes
     ----------
-    base_epochs : int
-        Number of epochs used to train the reference DNN.
-    ae_epochs : int
-        Number of epochs used to train the autoencoder.
+    model1_epochs : int
+        Number of epochs used to train Model 1 (reference DNN).
+    model3_epochs : int
+        Number of epochs used to train Model 3 (autoencoder).
     batch_size : int
         Number of samples per mini-batch during offline training.
-        Applies to both the reference DNN and the autoencoder.
+        Applies to both Model 1 and Model 3.
     """
 
-    base_epochs: int = 20
-    ae_epochs: int = 10
+    model1_epochs: int = 20
+    model3_epochs: int = 10
     batch_size: int = 256
 
 

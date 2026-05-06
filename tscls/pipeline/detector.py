@@ -7,9 +7,9 @@ from tscls.core.results import StepResult
 from tscls.core.sample import Sample
 from tscls.detection.ae_detector import AEDetector
 from tscls.detection.threshold import ThresholdRule
-from tscls.models.autoencoder import Autoencoder
-from tscls.models.base_dnn import DNNBase
+from tscls.models.dnn_classifier import DNNClassifier
 from tscls.models.stream_dnn import StreamDNN
+from tscls.models.autoencoder import Autoencoder
 from tscls.pipeline.pipeline_config import PipelineConfig
 from tscls.training.ae_trainer import AETrainer
 from tscls.training.base_trainer import BaseTrainer
@@ -55,12 +55,12 @@ class Detector:
 
         self.scaler = StandardScaler()
 
-        self.base_model = DNNBase(
+        self.model1 = DNNClassifier(
             layer_sizes=config.model.layer_sizes,
             activation=config.model.activation,
         )
 
-        self.autoencoder = Autoencoder(
+        self.model3 = Autoencoder(
             encoder_sizes=config.autoencoder.encoder_sizes,
             activation=config.autoencoder.activation,
         )
@@ -68,35 +68,35 @@ class Detector:
         self.threshold_rule = ThresholdRule(k=config.autoencoder.threshold_k)
 
         self._ae_detector = AEDetector(
-            autoencoder=self.autoencoder,
+            autoencoder=self.model3,
             threshold_rule=self.threshold_rule,
             device=self.device,
         )
 
         self._base_trainer = BaseTrainer(
-            loss_function=self._make_loss(config.optimization.base_loss_name),
+            loss_function=self._make_loss(config.optimization.model1_loss_name),
             gamma1=config.optimization.gamma1,
             s1=config.optimization.s1,
             device=self.device,
         )
 
         self._ae_trainer = AETrainer(
-            loss_function=self._make_loss(config.optimization.ae_loss_name),
+            loss_function=self._make_loss(config.optimization.model3_loss_name),
             device=self.device,
         )
 
         self._stream_trainer = StreamTrainer(
-            loss_function=self._make_loss(config.optimization.stream_loss_name),
+            loss_function=self._make_loss(config.optimization.model2_loss_name),
             gamma2=config.optimization.gamma2,
             s2=config.optimization.s2,
             device=self.device,
         )
 
-        self.stream_model: StreamDNN | None = None
+        self.model2: StreamDNN | None = None
         self._stream_optimizer: torch.optim.Optimizer | None = None
 
-        self.base_train_losses: list[float] = []
-        self.ae_train_losses: list[float] = []
+        self.model1_train_losses: list[float] = []
+        self.model3_train_losses: list[float] = []
 
     # ------------------------------------------------------------------
     # Helpers
@@ -155,55 +155,55 @@ class Detector:
             self.scaler.fit_transform(x_np), dtype=torch.float32
         )
 
-        # Train base DNN (Model 1)
-        base_optimizer = self._make_optimizer(
-            self.config.optimization.base_optimizer_name,
-            self.base_model.parameters(),
-            self.config.optimization.base_learning_rate,
+        # Train Model 1 (reference DNN)
+        model1_optimizer = self._make_optimizer(
+            self.config.optimization.model1_optimizer_name,
+            self.model1.parameters(),
+            self.config.optimization.model1_learning_rate,
         )
-        self.base_train_losses = self._base_trainer.train_model(
-            model=self.base_model,
+        self.model1_train_losses = self._base_trainer.train_model(
+            model=self.model1,
             x_reference=x_scaled,
             y_reference=y,
-            optimizer=base_optimizer,
-            epochs=self.config.training.base_epochs,
+            optimizer=model1_optimizer,
+            epochs=self.config.training.model1_epochs,
             batch_size=self.config.training.batch_size,
         )
 
         # Extract latent representations
         latents = self._base_trainer.extract_latents(
-            model=self.base_model,
+            model=self.model1,
             x_reference=x_scaled,
         )
 
-        # Train Autoencoder
-        ae_optimizer = self._make_optimizer(
-            self.config.optimization.ae_optimizer_name,
-            self.autoencoder.parameters(),
-            self.config.optimization.ae_learning_rate,
+        # Train Model 3 (autoencoder)
+        model3_optimizer = self._make_optimizer(
+            self.config.optimization.model3_optimizer_name,
+            self.model3.parameters(),
+            self.config.optimization.model3_learning_rate,
         )
-        self.ae_train_losses = self._ae_trainer.train_model(
-            autoencoder=self.autoencoder,
+        self.model3_train_losses = self._ae_trainer.train_model(
+            autoencoder=self.model3,
             reference_latents=latents,
-            optimizer=ae_optimizer,
-            epochs=self.config.training.ae_epochs,
+            optimizer=model3_optimizer,
+            epochs=self.config.training.model3_epochs,
             batch_size=self.config.training.batch_size,
         )
 
         # Calibrate threshold on reference reconstruction errors
-        self.autoencoder.to(self.device).eval()
+        self.model3.to(self.device).eval()
         with torch.no_grad():
-            _, ref_errors = self.autoencoder.reconstruction_error(
+            _, ref_errors = self.model3.reconstruction_error(
                 latents.to(self.device)
             )
         self.threshold_rule.calibrate(ref_errors.cpu())
 
-        # Initialise Stream DNN (Model 2)
-        self.stream_model = StreamDNN(base_model=self.base_model)
+        # Initialise Model 2 (stream DNN)
+        self.model2 = StreamDNN(base_model=self.model1)
         self._stream_optimizer = self._make_optimizer(
-            self.config.optimization.stream_optimizer_name,
-            self.stream_model.trainable_parameters(),
-            self.config.optimization.stream_learning_rate,
+            self.config.optimization.model2_optimizer_name,
+            self.model2.trainable_parameters(),
+            self.config.optimization.model2_learning_rate,
         )
 
     # ------------------------------------------------------------------
@@ -233,7 +233,7 @@ class Detector:
             If fit() has not been called yet.
         """
 
-        if self.stream_model is None or self._stream_optimizer is None:
+        if self.model2 is None or self._stream_optimizer is None:
             raise RuntimeError(
                 "Detector.fit() must be called before detect()."
             )
@@ -247,7 +247,7 @@ class Detector:
 
         # Online forward + adaptation step
         loss, logits, latent = self._stream_trainer.train_on_sample(
-            model=self.stream_model,
+            model=self.model2,
             sample=scaled_sample,
             optimizer=self._stream_optimizer,
         )

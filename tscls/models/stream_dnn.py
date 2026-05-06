@@ -4,23 +4,23 @@ from typing import Tuple
 import torch
 import torch.nn as nn
 
-from tscls.models.base_dnn import DNNBase
+from tscls.models.dnn_classifier import DNNClassifier
 
 
 class StreamDNN(nn.Module):
     """
     Online streaming DNN used during the drift detection phase (Algorithm 3).
 
-    Deep-copies the pre-trained base DNN, then freezes all layers except
+    Deep-copies the pre-trained Model 1, then freezes all layers except
     the last hidden linear (W(L)_F, b(L)_F). Only that layer is updated
     per sample so the AE can detect the resulting latent shift after drift.
     """
 
-    def __init__(self, base_model: DNNBase) -> None:
+    def __init__(self, base_model: DNNClassifier) -> None:
         """
         Parameters
         ----------
-        base_model : DNNBase
+        base_model : DNNClassifier
             The pre-trained reference DNN model.
         """
 
@@ -57,7 +57,7 @@ class StreamDNN(nn.Module):
         x: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Forward pass of the StreamDNN instance returning both
+        Forward pass of StreamDNN returning both
         classifier output and last hidden layer activation.
 
         Parameters
@@ -75,7 +75,7 @@ class StreamDNN(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass of the StreamDNN instance.
+        Forward pass of StreamDNN.
 
         Parameters
         ----------

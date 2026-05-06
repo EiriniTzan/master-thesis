@@ -1,5 +1,48 @@
 # Changelog
 
+## 2026-05-06
+
+### Naming aligned with paper (Model 1 / Model 2 / Model 3)
+
+**Class and module rename**
+
+`DNNBase` (in `tscls/models/base_dnn.py`) renamed to `DNNClassifier` (in
+`tscls/models/dnn_classifier.py`). `StreamDNN` and `Autoencoder` keep their
+descriptive names. All imports updated accordingly.
+
+**Config field rename (`OptimizationConfig`, `TrainingConfig`)**
+
+| Old | New |
+|-----|-----|
+| `base_loss_name` / `base_optimizer_name` / `base_learning_rate` | `model1_loss_name` / `model1_optimizer_name` / `model1_learning_rate` |
+| `stream_loss_name` / `stream_optimizer_name` / `stream_learning_rate` | `model2_loss_name` / `model2_optimizer_name` / `model2_learning_rate` |
+| `ae_loss_name` / `ae_optimizer_name` / `ae_learning_rate` | `model3_loss_name` / `model3_optimizer_name` / `model3_learning_rate` |
+| `base_epochs` / `ae_epochs` | `model1_epochs` / `model3_epochs` |
+
+**`Detector` attribute rename**
+
+| Old | New |
+|-----|-----|
+| `self.base_model` | `self.model1` (`DNNClassifier`) |
+| `self.stream_model` | `self.model2` (`StreamDNN`) |
+| `self.autoencoder` | `self.model3` (`Autoencoder`) |
+| `self.base_train_losses` / `self.ae_train_losses` | `self.model1_train_losses` / `self.model3_train_losses` |
+
+`PipelineResult` fields updated to match (`model1_train_losses`,
+`model3_train_losses`).
+
+**Autoencoder architecture (`encoder_sizes`)**
+
+Changed from `[64, 32, 8]` to `[64, 8]` to match paper Table 5 (L\_A = 8,
+single hidden layer bottleneck).
+
+**SEA stream length**
+
+Changed from 5 000 to 10 000 stream samples with drift at index 5 000,
+matching paper Table 1 (SEA\_a configuration).
+
+---
+
 ## 2026-04-28
 
 ### Architectural refactoring — `Detector` and `StreamMonitor`
@@ -28,13 +71,13 @@ old simulation scripts.
 - **`AutoencoderBuilder`** — composes two `FeedforwardBuilder`s (encoder +
   mirrored decoder), returns `(encoder, decoder)`.
 
-`DNNBase` and `Autoencoder` now delegate construction to these builders.
+`DNNClassifier` and `Autoencoder` now delegate construction to these builders.
 Configuration uses a single `layer_sizes` list instead of separate
 `input_dim / hidden_dims / output_dim` fields.
 
 ---
 
-### `DNNBase` — three named attributes
+### `DNNClassifier` — three named attributes
 
 ```python
 self.body               # nn.Sequential — first hidden layers + activations
@@ -65,5 +108,4 @@ freezing/unfreezing.
 - `DriftDetector` renamed to `AEDetector` in `tscls/detection/ae_detector.py`.
 - `StreamConfig` removed from `pipeline_config.py` (no longer needed).
 - New `tscls/datasets/` module with a `SEA` dataset class.
-- New `scripts/test_sea.py` and `scripts/test_sea.ipynb` for single-drift
-  experiments with SEA concepts.
+- New `scripts/test_sea.ipynb` for single-drift experiments with SEA concepts.

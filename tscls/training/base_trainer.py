@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from tscls.models.base_dnn import DNNBase
+from tscls.models.dnn_classifier import DNNClassifier
 
 
 class BaseTrainer:
@@ -65,7 +65,7 @@ class BaseTrainer:
 
     def train_model(
         self,
-        model: DNNBase,
+        model: DNNClassifier,
         x_reference: torch.Tensor,
         y_reference: torch.Tensor,
         optimizer: torch.optim.Optimizer,
@@ -77,7 +77,7 @@ class BaseTrainer:
 
         Parameters
         ----------
-        model : DNNBase
+        model : DNNClassifier
             The reference DNN model to be trained.
         x_reference : torch.Tensor
             The input data for training the reference DNN model.
@@ -135,15 +135,15 @@ class BaseTrainer:
 
     def extract_latents(
         self,
-        model: DNNBase,
+        model: DNNClassifier,
         x_reference: torch.Tensor,
     ) -> torch.Tensor:
         """
-        Extract latent representations from a trained DNNBase model.
+        Extract latent representations from a trained DNNClassifier model.
 
         Parameters
         ----------
-        model : DNNBase
+        model : DNNClassifier
             The model from which to extract latent representations.
         x_reference : torch.Tensor
             Input data for the model.

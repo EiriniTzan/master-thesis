@@ -78,6 +78,6 @@ class StreamMonitor:
             reconstruction_errors=reconstruction_errors,
             predictions=predictions,
             training_losses=training_losses,
-            base_train_losses=self.detector.base_train_losses,
-            ae_train_losses=self.detector.ae_train_losses,
+            model1_train_losses=self.detector.model1_train_losses,
+            model3_train_losses=self.detector.model3_train_losses,
         )
