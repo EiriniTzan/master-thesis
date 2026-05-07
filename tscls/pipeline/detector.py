@@ -175,7 +175,8 @@ class Detector:
             model=self.model1,
             x_reference=x_scaled,
         )
-
+        latents = latents[-5000:]
+        
         # Train Model 3 (autoencoder)
         model3_optimizer = self._make_optimizer(
             self.config.optimization.model3_optimizer_name,
