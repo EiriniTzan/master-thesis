@@ -7,12 +7,14 @@ import matplotlib.pyplot as plt
 def configure_matplotlib() -> None:
     """Apply the standard rcParams used across all notebooks."""
     plt.rcParams.update({
-        "font.size":        13,
+        "text.usetex":      True,
+        "font.family":      "serif",
+        "font.size":        12,
         "axes.titlesize":   14,
-        "axes.labelsize":   13,
-        "xtick.labelsize":  11,
-        "ytick.labelsize":  11,
-        "legend.fontsize":  11,
+        "axes.labelsize":   14,
+        "xtick.labelsize":  14,
+        "ytick.labelsize":  14,
+        "legend.fontsize":  10,
     })
 
 
@@ -138,9 +140,9 @@ def plot_sea_data(
     ax.axhline(
         theta_old,
         color="black", linestyle="--", linewidth=1.5,
-        label=f"θ = {theta_old}",
+        label=f"$\\theta$ = {theta_old}",
     )
-    ax.set_title(f"Reference data — SEA concept f{f_old} (θ = {theta_old})")
+    ax.set_title(f"Reference data --- SEA concept f{f_old} ($\\theta$ = {theta_old})")
     ax.set_xlabel("Sample index")
     ax.set_ylabel("$x_0 + x_1$")
     ax.legend(markerscale=3, loc="upper right")
@@ -161,12 +163,12 @@ def plot_sea_data(
     ax.axhline(
         theta_old,
         color="gray", linestyle="--", linewidth=1.5,
-        label=f"θ before drift = {theta_old}",
+        label=f"$\\theta$ before drift = {theta_old}",
     )
     ax.axhline(
         theta_new,
         color="black", linestyle="--", linewidth=1.5,
-        label=f"θ after drift = {theta_new}",
+        label=f"$\\theta$ after drift = {theta_new}",
     )
     ax.axvline(
         drift_pos,
@@ -174,7 +176,7 @@ def plot_sea_data(
         label=f"True drift at index {drift_pos}",
     )
     ax.set_title(
-        f"Stream data — SEA f{f_old}→f{f_new}, drift at index {drift_pos}"
+        f"Stream data --- SEA f{f_old}$\\to$f{f_new}, drift at index {drift_pos}"
     )
     ax.set_xlabel("Sample index")
     ax.set_ylabel("$x_0 + x_1$")
