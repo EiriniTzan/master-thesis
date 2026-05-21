@@ -1,38 +1,37 @@
-import torch
-
 from tscls.core.results import PipelineResult
 from tscls.core.sample import Sample
-from tscls.pipeline.detector import Detector
-from tscls.simulation.stream_simulation import StreamSimulator
+from tscls.pipeline.detector import AEDriftDetector
 
 
 class StreamMonitor:
     """
     Drives the online drift-detection loop.
 
-    Accepts a trained Detector and a StreamSimulator, iterates over the
-    stream sample by sample, and returns a PipelineResult aggregating all
-    per-sample outcomes.
+    Accepts a trained AEDriftDetector and a capymoa-compatible stream,
+    iterates over the stream sample by sample, and returns a PipelineResult
+    aggregating all per-sample outcomes.
     """
 
-    def __init__(self, detector: Detector) -> None:
+    def __init__(self, detector: AEDriftDetector) -> None:
         """
         Parameters
         ----------
-        detector : Detector
-            A Detector instance on which fit() has already been called.
+        detector : AEDriftDetector
+            An AEDriftDetector instance on which fit() has already been called.
         """
 
         self.detector = detector
 
-    def run(self, stream: StreamSimulator) -> PipelineResult:
+    def run(self, stream) -> PipelineResult:
         """
-        Iterate over the stream and collect drift-detection results.
+        Iterate over a capymoa stream and collect drift-detection results.
 
         Parameters
         ----------
-        stream : StreamSimulator
-            The data stream to monitor.
+        stream : capymoa Stream
+            Any stream that implements the capymoa Stream interface
+            (``restart``, ``has_more_instances``, ``next_instance``).
+            E.g. ``NumpyStream``, ``DriftStream``, ``SEA``.
 
         Returns
         -------
@@ -41,24 +40,21 @@ class StreamMonitor:
             reconstruction errors, predictions, and training losses.
         """
 
-        stream.reset()
+        stream.restart()
 
         drift_points: list[int] = []
         reconstruction_errors: list[float] = []
         predictions: list[float] = []
         training_losses: list[float] = []
         step_results = []
+        i = 0
 
-        while stream.has_next_sample():
-            x, y, i = stream.next_sample()
+        while stream.has_more_instances():
+            instance = stream.next_instance()
 
             sample = Sample(
-                x=(
-                    x.detach().cpu().numpy()
-                    if isinstance(x, torch.Tensor)
-                    else x
-                ),
-                y=int(y.item()) if isinstance(y, torch.Tensor) else int(y),
+                x=instance.x,
+                y=instance.y_index,
                 index=i,
             )
 
@@ -70,7 +66,9 @@ class StreamMonitor:
             training_losses.append(step_result.training_loss)
 
             if step_result.drift_detected:
-                drift_points.append(step_result.sample_index)
+                drift_points.append(i)
+
+            i += 1
 
         return PipelineResult(
             step_results=step_results,

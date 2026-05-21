@@ -14,6 +14,8 @@ matplotlib = "^3.10.8"
 scikit-learn = "^1.8.0"
 jupyter = "^1.1.1"
 ipympl = "^0.10.0"
+capymoa = "^0.13.0"
+pretty-errors = "^1.2.25"
 
 
 [build-system]

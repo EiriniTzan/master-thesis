@@ -3,6 +3,9 @@ import torch
 import torch.nn as nn
 from sklearn.preprocessing import StandardScaler
 
+from capymoa.drift.base_detector import BaseDriftDetector
+from capymoa.instance import LabeledInstance
+
 from tscls.core.results import StepResult
 from tscls.core.sample import Sample
 from tscls.detection.ae_detector import AEDetector
@@ -16,7 +19,7 @@ from tscls.training.base_trainer import BaseTrainer
 from tscls.training.stream_trainer import StreamTrainer
 
 
-class Detector:
+class AEDriftDetector(BaseDriftDetector):
     """
     Encapsulates offline training and per-sample online detection.
 
@@ -46,6 +49,7 @@ class Detector:
             Full pipeline configuration.
         """
 
+        super().__init__()
         self.config = config
         self.device = (
             config.device
@@ -120,6 +124,31 @@ class Detector:
         if name == "adam":
             return torch.optim.Adam(params, lr=lr)
         raise ValueError(f"Unknown optimizer: {name!r}")
+
+    # ------------------------------------------------------------------
+    # capymoa BaseDriftDetector interface
+    # ------------------------------------------------------------------
+
+    def add_element(self, instance: LabeledInstance) -> None:
+        """capymoa-compatible single-sample entry point.
+
+        Converts ``instance`` to a :class:`Sample`, runs ``detect()``,
+        and updates the inherited capymoa detector state.
+        """
+        sample = Sample(x=instance.x, y=instance.y_index, index=self.idx)
+        result = self.detect(sample)
+        self.in_concept_change = result.drift_detected
+        if result.drift_detected:
+            self.detection_index.append(self.idx)
+        self.data.append(result.reconstruction_error)
+        self.idx += 1
+
+    def get_params(self) -> dict:
+        return {
+            "threshold_k": self.config.autoencoder.threshold_k,
+            "encoder_sizes": self.config.autoencoder.encoder_sizes,
+            "layer_sizes": self.config.model.layer_sizes,
+        }
 
     # ------------------------------------------------------------------
     # Offline phase
