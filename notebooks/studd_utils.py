@@ -49,6 +49,7 @@ def make_teacher(schema, teacher_type: str, seed: int, n_trees: int):
     - Random Forest ("rf")
     - Naive Bayes ("nb")
     - Logistic Regression implemented through SGDClassifier ("lr")
+    - Streaming Gradient Boosted Trees ("sgbt")
 
     Parameters
     ----------
@@ -80,8 +81,11 @@ def make_teacher(schema, teacher_type: str, seed: int, n_trees: int):
     
     if teacher_type == "lr":
         return SGDClassifier(schema=schema, loss="log_loss", random_seed=seed)
+    
+    if teacher_type == "sgbt":
+        return StreamingGradientBoostedTrees(schema=schema)
 
-    raise ValueError(f"Unknown teacher_type={teacher_type!r}. Use 'rf', 'lr' or 'nb'.")
+    raise ValueError(f"Unknown teacher_type={teacher_type!r}. Use 'rf', 'lr', 'nb' or 'sgbt'.")
 
 
 def make_student(schema, student_type: str, seed: int, n_trees: int):
