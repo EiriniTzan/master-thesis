@@ -16,7 +16,7 @@ The thesis examines two drift detection approaches:
 
 The DNN-AE approach is evaluated in a controlled synthetic SEA setting, while the STUDD approach is investigated through detector-comparison experiments across multiple real datasets.
 
-Synthetic data streams are generated with [CapyMOA](https://capymoa.org/), and the
+Synthetic data streams are generated with [CapyMOA](https://capymoa.org/) and the
 STUDD baseline is also evaluated using CapyMOA's built-in implementation.
 
 ---
@@ -27,7 +27,7 @@ STUDD baseline is also evaluated using CapyMOA's built-in implementation.
 
 The first part of the thesis investigates a DNN-AE latent-space drift detection approach.
 
-A base DNN classifier is trained on reference data. The latent representations produced by this classifier are then used to train an autoencoder. During stream processing, incoming samples are passed through the classifier, and their latent representations are reconstructed by the autoencoder.
+A base DNN classifier is trained on reference data. The latent representations produced by this classifier are then used to train an autoencoder. During stream processing, incoming samples are passed through the classifier and their latent representations are reconstructed by the autoencoder.
 
 Drift is signalled when the reconstruction error exceeds a threshold estimated from the reference data.
 
@@ -41,7 +41,7 @@ The second part of the thesis investigates STUDD, a student-teacher framework fo
 
 A teacher model is trained on an initial labeled batch, while a student model learns online to mimic the teacher's predictions. Changes in the teacher-student relationship are used as a signal for drift detection.
 
-In addition to the paper-style STUDD setup, this repository evaluates different internal drift detectors inside the STUDD framework, including:
+In addition to the STUDD setup, this repository evaluates different internal drift detectors inside the STUDD framework, including:
 
 - ADWIN
 - Page-Hinkley
@@ -66,7 +66,7 @@ tscls/
   models/          # DNNClassifier, StreamDNN, Autoencoder, builder helpers
   training/        # offline and online training loops
   detection/       # AEDriftDetector (capymoa BaseDriftDetector), threshold utils
-  pipeline/        # PipelineConfig, AEDriftDetector façade, StreamMonitor
+  pipeline/        # PipelineConfig, AEDriftDetector, StreamMonitor
   core/            # shared result types and sample helpers
 
 notebooks/
@@ -116,7 +116,7 @@ The aggregate detection metrics are computed for the real-dataset detector-compa
 
 End-to-end experiment with the DNN + AE detector:
 
-1. Data generation and visualisation
+1. Data generation and visualization
 2. Model configuration and offline training (Models 1 and 3)
 3. Online stream monitoring with `StreamMonitor`
 4. Plots: reconstruction error, online training loss, rolling accuracy,
